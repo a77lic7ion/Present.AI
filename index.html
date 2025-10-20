@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Present.AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style type="text/tailwindcss">
+      :root {
+        --dark-void: #0a0a0a;
+        --orange-primary: #ff6600;
+        --orange-secondary: #cc5200;
+        --glow-effect: 0 0 8px var(--orange-primary), 0 0 16px var(--orange-primary);
+        --input-border: #333;
+        --input-bg: #1a1a1a;
+        --text-color: #e0e0e0;
+      }
+      body {
+        overscroll-behavior: none;
+        background-color: var(--dark-void);
+        font-family: 'Space Grotesk', sans-serif;
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1a1a1a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background-color: #4a4a4a;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background-color: var(--orange-primary);
+      }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://aistudiocdn.com/react@^19.2.0",
+          "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+          "react/": "https://aistudiocdn.com/react@^19.2.0/",
+          "@google/genai": "https://aistudiocdn.com/@google/genai@^1.25.0",
+          "zustand": "https://aistudiocdn.com/zustand@^5.0.8",
+          "zustand/": "https://aistudiocdn.com/zustand@^5.0.8/",
+          "dexie": "https://aistudiocdn.com/dexie@^4.2.1",
+          "pptxgenjs": "https://aistudiocdn.com/pptxgenjs@^4.0.1",
+          "dexie-react-hooks": "https://aistudiocdn.com/dexie-react-hooks@^4.2.0",
+          "jszip": "https://aistudiocdn.com/jszip@3.10.1"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

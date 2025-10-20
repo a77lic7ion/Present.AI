@@ -1,0 +1,7 @@
+{
+  "name": "Present.AI",
+  "description": "A powerful presentation creation tool that leverages both local (Ollama) and cloud (Gemini) AI to streamline brainstorming, content drafting, scriptwriting, and exporting to PowerPoint.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
