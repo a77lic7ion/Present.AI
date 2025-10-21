@@ -2,7 +2,6 @@
 
 Welcome to **Present.AI**, the futuristic, AI-powered presentation design suite. Engage with a powerful AI through a conversational data stream to brainstorm, generate, and refine entire presentations from a single idea.
 
-![Present.AI Data Stream Interface](https://i.imgur.com/gK2oQ9x.png)
 
 ## 🚀 Core Features
 
