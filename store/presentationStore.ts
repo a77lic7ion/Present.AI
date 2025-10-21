@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import type { Topic, Slide, Project, ImageContent } from '../types';
+import type { Topic, Slide, Project, ImageContent, VideoContent } from '../types';
 
 type PresentationView = 'brainstorming' | 'editor' | 'script';
 
 interface PresentationState {
   // Metadata
   title: string;
+  projectId: number | null;
   currentView: PresentationView;
 
   // Content
@@ -17,6 +18,7 @@ interface PresentationState {
 
   // Actions
   setTitle: (title: string) => void;
+  setProjectId: (id: number | null) => void;
   setTopics: (topics: Topic[]) => void;
   setCurrentView: (view: PresentationView) => void;
   
@@ -24,12 +26,17 @@ interface PresentationState {
   selectSlide: (topicId: string, slideId: string) => void;
   
   // CRUD operations
+  addTopic: (title: string) => void;
+  deleteTopic: (topicId: string) => void;
+  updateTopicTitle: (topicId: string, newTitle: string) => void;
   addSlide: (topicId: string, title: string) => void;
   deleteSlide: (topicId: string, slideId: string) => void;
   updateSlideTitle: (slideId: string, newTitle: string) => void;
   updateSlideContent: (slideId: string, content: string[]) => void;
-  setSlideImage: (slideId: string, image: ImageContent) => void;
-  deleteSlideImage: (slideId: string) => void;
+  addSlideImage: (slideId: string, image: ImageContent) => void;
+  deleteSlideImage: (slideId: string, imageIndex: number) => void;
+  setSlideVideo: (slideId: string, video: VideoContent) => void;
+  deleteSlideVideo: (slideId: string) => void;
   setSpeakerNotes: (slideId: string, notes: string) => void;
 
   // Project management
@@ -39,6 +46,7 @@ interface PresentationState {
 
 const initialState = {
   title: '',
+  projectId: null,
   currentView: 'brainstorming' as PresentationView,
   topics: [],
   currentTopicId: null,
@@ -49,12 +57,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   ...initialState,
 
   setTitle: (title) => set({ title }),
+  setProjectId: (id) => set({ projectId: id }),
   setTopics: (topics) => {
-    // When topics are set, automatically select the first slide of the first topic
+    // When topics are set, it's a new presentation structure.
+    // Reset project ID and select the first slide.
     const firstTopic = topics[0];
     const firstSlide = firstTopic?.subtopics[0];
     set({
       topics,
+      projectId: null,
       currentTopicId: firstTopic?.id || null,
       currentSlideId: firstSlide?.id || null,
     });
@@ -62,6 +73,32 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   setCurrentView: (view) => set({ currentView: view }),
 
   selectSlide: (topicId, slideId) => set({ currentTopicId: topicId, currentSlideId: slideId }),
+
+  addTopic: (title) => set(state => {
+    const newTopic: Topic = { id: `topic-${Math.random()}`, title, subtopics: [] };
+    const newTopics = [...state.topics, newTopic];
+    return { topics: newTopics };
+  }),
+
+  deleteTopic: (topicId) => set(state => {
+    const newTopics = state.topics.filter(topic => topic.id !== topicId);
+    let { currentTopicId, currentSlideId } = state;
+
+    if (currentTopicId === topicId) {
+        const firstTopic = newTopics[0];
+        const firstSlide = firstTopic?.subtopics[0];
+        currentTopicId = firstTopic?.id || null;
+        currentSlideId = firstSlide?.id || null;
+    }
+    
+    return { topics: newTopics, currentTopicId, currentSlideId };
+  }),
+
+  updateTopicTitle: (topicId, newTitle) => set(state => ({
+    topics: state.topics.map(topic => 
+      topic.id === topicId ? { ...topic, title: newTitle } : topic
+    )
+  })),
 
   addSlide: (topicId, title) => set(state => {
     const newSlide: Slide = { id: `slide-${Math.random()}`, title, content: [] };
@@ -90,9 +127,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
                 // select previous or first slide
                 newCurrentSlideId = newSubtopics[Math.max(0, slideIndex - 1)].id;
             } else {
-                // no slides left in this topic
-                newCurrentSlideId = null;
-                newCurrentTopicId = null; // or select another topic's slide
+                // no slides left in this topic, try to find another slide
+                const otherTopicWithSlides = state.topics.find(t => t.id !== topicId && t.subtopics.length > 0);
+                if (otherTopicWithSlides) {
+                    newCurrentTopicId = otherTopicWithSlides.id;
+                    newCurrentSlideId = otherTopicWithSlides.subtopics[0].id;
+                } else {
+                    newCurrentSlideId = null;
+                    newCurrentTopicId = null;
+                }
             }
         }
         
@@ -117,26 +160,59 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }))
   })),
 
-  setSlideImage: (slideId, image) => set(state => ({
+  addSlideImage: (slideId, image) => set(state => ({
     topics: state.topics.map(topic => ({
       ...topic,
-      subtopics: topic.subtopics.map(slide => slide.id === slideId ? { ...slide, image } : slide)
+      subtopics: topic.subtopics.map(slide => {
+        if (slide.id === slideId) {
+          const { video, ...rest } = slide; // remove video if adding an image
+          const newImages = [...(slide.images || []), image];
+          return { ...rest, images: newImages };
+        }
+        return slide;
+      })
     }))
   })),
   
-  deleteSlideImage: (slideId) => set(state => ({
+  deleteSlideImage: (slideId, imageIndex) => set(state => ({
     topics: state.topics.map(topic => ({
         ...topic,
         subtopics: topic.subtopics.map(slide => {
-            if (slide.id === slideId) {
-                const { image, ...rest } = slide;
-                return rest;
+            if (slide.id === slideId && slide.images) {
+                const newImages = slide.images.filter((_, index) => index !== imageIndex);
+                return { ...slide, images: newImages };
             }
             return slide;
         })
     }))
   })),
   
+  setSlideVideo: (slideId, video) => set(state => ({
+    topics: state.topics.map(topic => ({
+      ...topic,
+      subtopics: topic.subtopics.map(slide => {
+        if (slide.id === slideId) {
+          const { images, ...rest } = slide; // remove images if adding a video
+          return { ...rest, video };
+        }
+        return slide;
+      })
+    }))
+  })),
+
+  deleteSlideVideo: (slideId) => set(state => ({
+    topics: state.topics.map(topic => ({
+        ...topic,
+        subtopics: topic.subtopics.map(slide => {
+            if (slide.id === slideId) {
+                const { video, ...rest } = slide;
+                return rest;
+            }
+            return slide;
+        })
+    }))
+  })),
+
   setSpeakerNotes: (slideId, notes) => set(state => ({
     topics: state.topics.map(topic => ({
         ...topic,
@@ -147,6 +223,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   loadProject: (project) => set({
     title: project.title,
     topics: project.topics,
+    projectId: project.id || null,
     currentView: 'editor',
     currentTopicId: project.topics[0]?.id || null,
     currentSlideId: project.topics[0]?.subtopics[0]?.id || null,

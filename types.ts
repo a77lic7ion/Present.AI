@@ -4,11 +4,18 @@ export interface ImageContent {
   prompt: string;
 }
 
+export interface VideoContent {
+  data: string; // base64 encoded video
+  mimeType: string;
+  name: string;
+}
+
 export interface Slide {
   id: string;
   title: string;
   content: string[]; // bullet points
-  image?: ImageContent;
+  images?: ImageContent[];
+  video?: VideoContent;
   speakerNotes?: string;
 }
 

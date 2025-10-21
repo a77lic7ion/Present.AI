@@ -96,11 +96,23 @@ const ScriptGeneratorView: React.FC = () => {
                                 <ul className="list-disc list-inside space-y-2 text-gray-300">
                                     {selectedSlide.content.map((point, i) => <li key={i}>{point}</li>)}
                                 </ul>
-                                {selectedSlide.image && (
+                                {selectedSlide.images && selectedSlide.images.length > 0 && (
+                                    <div className="mt-6 grid grid-cols-2 gap-2">
+                                        {selectedSlide.images.map((image, index) => (
+                                            <img 
+                                                key={index}
+                                                src={`data:${image.mimeType};base64,${image.data}`} 
+                                                alt={image.prompt}
+                                                className="w-full object-cover rounded-md aspect-video"
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                {selectedSlide.video && (
                                     <div className="mt-6">
-                                        <img 
-                                            src={`data:${selectedSlide.image.mimeType};base64,${selectedSlide.image.data}`} 
-                                            alt={selectedSlide.image.prompt}
+                                        <video 
+                                            src={`data:${selectedSlide.video.mimeType};base64,${selectedSlide.video.data}`} 
+                                            controls
                                             className="max-w-full rounded-md"
                                         />
                                     </div>
