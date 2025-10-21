@@ -10,11 +10,13 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const {
+    geminiApiKey, setGeminiApiKey,
     ollamaEndpoint, setOllamaEndpoint,
     openAiApiKey, setOpenAiApiKey,
     mistralApiKey, setMistralApiKey
   } = useSettingsStore();
 
+  const [localGeminiKey, setLocalGeminiKey] = useState(geminiApiKey);
   const [localOllamaEndpoint, setLocalOllamaEndpoint] = useState(ollamaEndpoint);
   const [ollamaStatus, setOllamaStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
   const [geminiStatus, setGeminiStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
@@ -22,16 +24,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [localMistralKey, setLocalMistralKey] = useState(mistralApiKey);
   
   useEffect(() => {
+      setLocalGeminiKey(geminiApiKey);
       setLocalOllamaEndpoint(ollamaEndpoint);
       setLocalOpenAiKey(openAiApiKey);
       setLocalMistralKey(mistralApiKey);
       setGeminiStatus('idle');
       setOllamaStatus('idle');
-  }, [isOpen, ollamaEndpoint, openAiApiKey, mistralApiKey]);
+  }, [isOpen, geminiApiKey, ollamaEndpoint, openAiApiKey, mistralApiKey]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
+    setGeminiApiKey(localGeminiKey);
     setOllamaEndpoint(localOllamaEndpoint);
     setOpenAiApiKey(localOpenAiKey);
     setMistralApiKey(localMistralKey);
@@ -46,7 +50,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 
   const handleTestGemini = async () => {
     setGeminiStatus('testing');
-    const isOk = await testGeminiConnection();
+    const isOk = await testGeminiConnection(localGeminiKey);
     setGeminiStatus(isOk ? 'ok' : 'error');
   };
 
@@ -57,13 +61,21 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
         <div className="space-y-6">
           
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Google Gemini</label>
-            <div className="flex items-center justify-between bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2">
-                <p className="text-sm text-gray-400">API Key is securely managed.</p>
-                 <button onClick={handleTestGemini} className="px-4 py-1.5 bg-[#2a2a2a] rounded-lg hover:bg-[#3a3a3a] text-sm">
-                    Test
-                </button>
+            <label htmlFor="gemini-key" className="block text-sm font-medium text-gray-300 mb-2">Google Gemini API Key</label>
+             <div className="flex gap-2">
+               <input
+                id="gemini-key"
+                type="password"
+                value={localGeminiKey}
+                onChange={(e) => setLocalGeminiKey(e.target.value)}
+                className="flex-grow bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--orange-primary)] focus:outline-none"
+                placeholder="Enter your Gemini API Key"
+              />
+              <button type="button" onClick={handleTestGemini} disabled={!localGeminiKey || geminiStatus === 'testing'} className="px-4 py-2 bg-[#2a2a2a] rounded-lg hover:bg-[#3a3a3a] text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {geminiStatus === 'testing' ? 'Testing...' : 'Test'}
+              </button>
             </div>
+             {geminiStatus === 'testing' && <p className="text-gray-400 text-xs mt-1">Testing connection...</p>}
              {geminiStatus === 'ok' && <p className="text-green-400 text-xs mt-1">Connection successful!</p>}
              {geminiStatus === 'error' && <p className="text-red-400 text-xs mt-1">Connection failed. Check API key.</p>}
           </div>
@@ -77,8 +89,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                 onChange={(e) => setLocalOllamaEndpoint(e.target.value)}
                 className="flex-grow bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2 focus:ring-2 focus:ring-[var(--orange-primary)] focus:outline-none"
               />
-              <button onClick={handleTestOllama} className="px-4 py-2 bg-[#2a2a2a] rounded-lg hover:bg-[#3a3a3a] text-sm">
-                Test
+              <button onClick={handleTestOllama} disabled={!localOllamaEndpoint || ollamaStatus === 'testing'} className="px-4 py-2 bg-[#2a2a2a] rounded-lg hover:bg-[#3a3a3a] text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                {ollamaStatus === 'testing' ? 'Testing...' : 'Test'}
               </button>
             </div>
             {ollamaStatus === 'ok' && <p className="text-green-400 text-xs mt-1">Connection successful!</p>}

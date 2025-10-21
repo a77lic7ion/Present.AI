@@ -1,20 +1,28 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import type { Reference, Topic, Slide, ImageContent } from "../types";
+import { useSettingsStore } from '../store/settingsStore';
 
-// FIX: Initialized the Gemini AI client.
-// The API key is sourced from environment variables as required by the coding guidelines.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Helper function to get an initialized AI client
+const getAiClient = (): GoogleGenAI => {
+    const apiKey = useSettingsStore.getState().geminiApiKey;
+    if (!apiKey) {
+        throw new Error("Gemini API key is not set. Please add it in the settings panel.");
+    }
+    return new GoogleGenAI({ apiKey });
+};
 
 const model = 'gemini-2.5-flash';
 const REFERENCE_CONTENT_CHAR_LIMIT = 20000; // Limit each reference file to 20k chars
 
 /**
  * Tests the connection to the Gemini API by making a simple request.
+ * @param apiKey The API key to test.
  * @returns A promise that resolves to true if the connection is successful, false otherwise.
  */
-export const testGeminiConnection = async (): Promise<boolean> => {
+export const testGeminiConnection = async (apiKey: string): Promise<boolean> => {
+    if (!apiKey) return false;
     try {
-        // Make a very simple, low-token request to verify the key is working.
+        const ai = new GoogleGenAI({ apiKey });
         await ai.models.generateContent({
             model: model,
             contents: "hello",
@@ -34,6 +42,7 @@ export const testGeminiConnection = async (): Promise<boolean> => {
  * @returns A promise that resolves to an array of Topic objects.
  */
 export const generateTopicsWithGemini = async (prompt: string, references: Reference[]): Promise<Topic[]> => {
+    const ai = getAiClient();
     let fullPrompt = `You are an expert presentation creator. Generate a structured outline for a presentation about "${prompt}". The outline should consist of several main topics, and each main topic should have a few subtopics. Each subtopic will become a slide.
 
     The response must be a JSON array of topics. Each topic object should have a "title" (string) and "subtopics" (an array of objects, where each object has a "title" (string)). Do not include any other properties.
@@ -114,6 +123,9 @@ export const generateTopicsWithGemini = async (prompt: string, references: Refer
             }))
         }));
     } catch (e) {
+        if (e instanceof Error && e.message.includes('API key not valid')) {
+             throw new Error("Invalid Gemini API key. Please check it in the settings.");
+        }
         console.error("Failed to parse JSON response from Gemini:", e);
         throw new Error("Received an invalid format from the AI. Please try again.");
     }
@@ -126,6 +138,7 @@ export const generateTopicsWithGemini = async (prompt: string, references: Refer
  * @returns A promise that resolves to an array of strings (bullet points).
  */
 export const draftContentWithGemini = async (slideTitle: string, presentationTitle: string): Promise<string[]> => {
+    const ai = getAiClient();
     const fullPrompt = `For a presentation titled "${presentationTitle}", generate 3-5 concise bullet points for a slide with the title "${slideTitle}". The bullet points should be suitable for a presentation slide, meaning they should be short and to the point.
     
     Return the response as a JSON array of strings. Each string is one bullet point. Do not use markdown formatting.
@@ -157,6 +170,9 @@ export const draftContentWithGemini = async (slideTitle: string, presentationTit
         // Clean up any potential markdown list characters.
         return content.map((point: string) => point.replace(/^- \s*/, ''));
     } catch (e) {
+        if (e instanceof Error && e.message.includes('API key not valid')) {
+             throw new Error("Invalid Gemini API key. Please check it in the settings.");
+        }
         console.error("Failed to parse JSON response from Gemini:", e);
         throw new Error("Received an invalid format from the AI. Please try again.");
     }
@@ -168,6 +184,7 @@ export const draftContentWithGemini = async (slideTitle: string, presentationTit
  * @returns A promise that resolves to an ImageContent object containing base64 data and mimeType.
  */
 export const generateImageWithGemini = async (prompt: string): Promise<ImageContent> => {
+    const ai = getAiClient();
     const imageModel = 'gemini-2.5-flash-image';
     
     try {
@@ -193,6 +210,9 @@ export const generateImageWithGemini = async (prompt: string): Promise<ImageCont
           }
         }
     } catch(e) {
+        if (e instanceof Error && e.message.includes('API key not valid')) {
+             throw new Error("Invalid Gemini API key. Please check it in the settings.");
+        }
         console.error("Failed to generate image with Gemini:", e);
         throw new Error("Failed to generate image. Please check your prompt or API settings.");
     }
@@ -207,6 +227,7 @@ export const generateImageWithGemini = async (prompt: string): Promise<ImageCont
  * @returns A promise that resolves to a string of speaker notes.
  */
 export const generateSpeakerNotesWithGemini = async (slide: Slide, presentationTitle: string): Promise<string> => {
+    const ai = getAiClient();
     const slideTextContent = slide.content.map(p => `- ${p}`).join('\n');
     
     let fullPrompt = `You are a presentation coach. For a presentation titled "${presentationTitle}", write speaker notes for a slide titled "${slide.title}".
@@ -224,6 +245,9 @@ export const generateSpeakerNotesWithGemini = async (slide: Slide, presentationT
         
         return response.text;
     } catch(e) {
+        if (e instanceof Error && e.message.includes('API key not valid')) {
+             throw new Error("Invalid Gemini API key. Please check it in the settings.");
+        }
         console.error("Failed to generate speaker notes with Gemini:", e);
         throw new Error("Failed to generate speaker notes.");
     }
