@@ -2,12 +2,20 @@ export interface ImageContent {
   data: string; // base64 encoded image
   mimeType: string;
   prompt: string;
+  originalData?: string; // To store the original image for re-editing
 }
 
 export interface VideoContent {
   data: string; // base64 encoded video
   mimeType: string;
   name: string;
+}
+
+export interface LayoutProperties {
+  x: number; // percentage
+  y: number; // percentage
+  width: number; // percentage
+  height: number; // percentage
 }
 
 export interface Slide {
@@ -17,6 +25,8 @@ export interface Slide {
   images?: ImageContent[];
   video?: VideoContent;
   speakerNotes?: string;
+  textLayout?: LayoutProperties;
+  mediaLayout?: LayoutProperties;
 }
 
 export interface Topic {

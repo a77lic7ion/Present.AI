@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Topic, Slide, Project, ImageContent, VideoContent } from '../types';
+import type { Topic, Slide, Project, ImageContent, VideoContent, LayoutProperties } from '../types';
 
 type PresentationView = 'brainstorming' | 'editor' | 'script';
 
@@ -33,7 +33,9 @@ interface PresentationState {
   deleteSlide: (topicId: string, slideId: string) => void;
   updateSlideTitle: (slideId: string, newTitle: string) => void;
   updateSlideContent: (slideId: string, content: string[]) => void;
+  updateSlideLayouts: (slideId: string, layouts: { textLayout?: LayoutProperties; mediaLayout?: LayoutProperties }) => void;
   addSlideImage: (slideId: string, image: ImageContent) => void;
+  updateSlideImage: (slideId: string, imageIndex: number, newImage: ImageContent) => void;
   deleteSlideImage: (slideId: string, imageIndex: number) => void;
   setSlideVideo: (slideId: string, video: VideoContent) => void;
   deleteSlideVideo: (slideId: string) => void;
@@ -101,7 +103,12 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   })),
 
   addSlide: (topicId, title) => set(state => {
-    const newSlide: Slide = { id: `slide-${Math.random()}`, title, content: [] };
+    const newSlide: Slide = { 
+        id: `slide-${Math.random()}`, 
+        title, 
+        content: [],
+        textLayout: { x: 5, y: 5, width: 90, height: 90 } // Default layout for a new slide
+    };
     const newTopics = state.topics.map(topic => {
       if (topic.id === topicId) {
         return { ...topic, subtopics: [...topic.subtopics, newSlide] };
@@ -160,6 +167,18 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }))
   })),
 
+  updateSlideLayouts: (slideId, layouts) => set(state => ({
+    topics: state.topics.map(topic => ({
+      ...topic,
+      subtopics: topic.subtopics.map(slide => {
+        if (slide.id === slideId) {
+          return { ...slide, ...layouts };
+        }
+        return slide;
+      })
+    }))
+  })),
+
   addSlideImage: (slideId, image) => set(state => ({
     topics: state.topics.map(topic => ({
       ...topic,
@@ -174,6 +193,20 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     }))
   })),
   
+  updateSlideImage: (slideId, imageIndex, newImage) => set(state => ({
+    topics: state.topics.map(topic => ({
+        ...topic,
+        subtopics: topic.subtopics.map(slide => {
+            if (slide.id === slideId && slide.images) {
+                const newImages = [...slide.images];
+                newImages[imageIndex] = newImage;
+                return { ...slide, images: newImages };
+            }
+            return slide;
+        })
+    }))
+  })),
+
   deleteSlideImage: (slideId, imageIndex) => set(state => ({
     topics: state.topics.map(topic => ({
         ...topic,

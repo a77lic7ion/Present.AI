@@ -16,7 +16,8 @@
     "dexie": "^4.2.1",
     "pptxgenjs": "^4.0.1",
     "dexie-react-hooks": "^4.2.0",
-    "jszip": "3.10.1"
+    "jszip": "3.10.1",
+    "react-image-crop": "^11.0.6"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

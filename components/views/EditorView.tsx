@@ -1,18 +1,128 @@
-import React, { useState, useEffect, useRef } from 'react';
+
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { usePresentationStore } from '../../store/presentationStore';
 import { draftContentWithGemini, generateImageWithGemini } from '../../services/geminiService';
 import { exportToPptx } from '../../services/pptxService';
 import { db } from '../../db';
-import type { Slide, ImageContent, VideoContent, Topic } from '../../types';
-import { readFile } from '../../utils/fileUtils';
+import type { Slide, ImageContent, VideoContent, Topic, LayoutProperties } from '../../types';
+import { readFile, readFileAsDataURL } from '../../utils/fileUtils';
 
 import Logo from '../Logo';
-import { DownloadIcon, SaveIcon, EditIcon, MicIcon, PlusIcon, TrashIcon, ImageIcon, SettingsIcon, UploadCloudIcon, SparklesIcon } from '../icons';
+import { DownloadIcon, SaveIcon, EditIcon, MicIcon, PlusIcon, TrashIcon, ImageIcon, SettingsIcon, UploadCloudIcon, SparklesIcon, HomeIcon } from '../icons';
 import SettingsModal from '../common/SettingsModal';
 import LoadProjectModal from '../common/LoadProjectModal';
 import ImagePromptModal from '../common/ImagePromptModal';
 import SaveProjectModal from '../common/SaveProjectModal';
+import ImageEditModal from '../common/ImageCropModal';
 import Spinner from '../common/Spinner';
+
+interface DraggableResizableBoxProps {
+    layout: LayoutProperties;
+    onLayoutChange: (layout: LayoutProperties) => void;
+    containerRef: React.RefObject<HTMLDivElement>;
+    children: React.ReactNode;
+    className?: string;
+}
+
+const DraggableResizableBox: React.FC<DraggableResizableBoxProps> = ({ layout, onLayoutChange, containerRef, children, className }) => {
+    const boxRef = useRef<HTMLDivElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState<string | null>(null);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, action: 'drag' | 'resize', direction?: string) => {
+        if ((e.target as HTMLElement).closest('[contenteditable="true"]')) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLayout = { ...layout };
+
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            const dxPercent = (dx / containerRect.width) * 100;
+            const dyPercent = (dy / containerRect.height) * 100;
+
+            let newLayout = { ...startLayout };
+
+            if (action === 'drag') {
+                newLayout.x = startLayout.x + dxPercent;
+                newLayout.y = startLayout.y + dyPercent;
+            } else if (action === 'resize' && direction) {
+                if (direction.includes('r')) newLayout.width = Math.max(10, startLayout.width + dxPercent);
+                if (direction.includes('l')) {
+                    newLayout.width = Math.max(10, startLayout.width - dxPercent);
+                    newLayout.x = startLayout.x + dxPercent;
+                }
+                if (direction.includes('b')) newLayout.height = Math.max(10, startLayout.height + dyPercent);
+                if (direction.includes('t')) {
+                    newLayout.height = Math.max(10, startLayout.height - dyPercent);
+                    newLayout.y = startLayout.y + dyPercent;
+                }
+            }
+
+            // Clamp values to stay within container bounds
+            newLayout.x = Math.max(0, Math.min(newLayout.x, 100 - newLayout.width));
+            newLayout.y = Math.max(0, Math.min(newLayout.y, 100 - newLayout.height));
+            newLayout.width = Math.min(newLayout.width, 100 - newLayout.x);
+            newLayout.height = Math.min(newLayout.height, 100 - newLayout.y);
+
+            onLayoutChange(newLayout);
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp, { once: true });
+
+    }, [layout, onLayoutChange, containerRef]);
+
+    const resizeHandles = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
+
+    return (
+        <div
+            ref={boxRef}
+            className={`absolute group cursor-move border-2 border-transparent hover:border-dashed hover:border-[var(--orange-primary)] ${className}`}
+            style={{
+                left: `${layout.x}%`,
+                top: `${layout.y}%`,
+                width: `${layout.width}%`,
+                height: `${layout.height}%`,
+                userSelect: isDragging || isResizing ? 'none' : 'auto',
+            }}
+            onMouseDown={(e) => handleMouseDown(e, 'drag')}
+        >
+            <div className="w-full h-full overflow-hidden relative">
+                {children}
+            </div>
+            {resizeHandles.map(dir => (
+                <div
+                    key={dir}
+                    className={`absolute w-3 h-3 bg-[var(--orange-primary)] rounded-full opacity-0 group-hover:opacity-100 
+                    ${dir.includes('t') ? 'top-[-6px]' : ''} ${dir.includes('b') ? 'bottom-[-6px]' : ''}
+                    ${dir.includes('l') ? 'left-[-6px]' : ''} ${dir.includes('r') ? 'right-[-6px]' : ''}
+                    ${dir.length === 1 ? (dir === 't' || dir === 'b' ? 'left-1/2 -translate-x-1/2' : 'top-1/2 -translate-y-1/2') : ''}
+                    ${dir === 'tl' || dir === 'br' ? 'cursor-nwse-resize' : ''}
+                    ${dir === 'tr' || dir === 'bl' ? 'cursor-nesw-resize' : ''}
+                    ${dir === 't' || dir === 'b' ? 'cursor-ns-resize' : ''}
+                    ${dir === 'l' || dir === 'r' ? 'cursor-ew-resize' : ''}
+                    `}
+                    onMouseDown={(e) => handleMouseDown(e, 'resize', dir)}
+                />
+            ))}
+        </div>
+    );
+};
+
 
 const EditorView: React.FC = () => {
     // Component state
@@ -28,6 +138,11 @@ const EditorView: React.FC = () => {
     const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
     const [editingTopicTitle, setEditingTopicTitle] = useState('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [sidebarWidth, setSidebarWidth] = useState(320);
+    const [isResizing, setIsResizing] = useState(false);
+    const previewContainerRef = useRef<HTMLDivElement>(null);
+    const [editingImage, setEditingImage] = useState<{src: string; mimeType: string; index?: number} | null>(null);
+
 
     // Zustand store selectors
     const { 
@@ -35,13 +150,49 @@ const EditorView: React.FC = () => {
         selectSlide, updateSlideContent, updateSlideTitle, setCurrentView,
         addSlideImage, deleteSlideImage, setSlideVideo, deleteSlideVideo,
         setProjectId, setTitle, addTopic, deleteTopic, updateTopicTitle,
-        addSlide, deleteSlide,
+        addSlide, deleteSlide, updateSlideLayouts, resetProject, updateSlideImage
     } = usePresentationStore();
 
     const currentSlide: Slide | undefined = topics
         .flatMap(t => t.subtopics)
         .find(s => s.id === currentSlideId);
 
+    // Resizing logic
+    const MIN_SIDEBAR_WIDTH = 250;
+    const MAX_SIDEBAR_WIDTH = 600;
+
+    const startResizing = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsResizing(true);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            let newWidth = e.clientX;
+            if (newWidth < MIN_SIDEBAR_WIDTH) newWidth = MIN_SIDEBAR_WIDTH;
+            if (newWidth > MAX_SIDEBAR_WIDTH) newWidth = MAX_SIDEBAR_WIDTH;
+            setSidebarWidth(newWidth);
+        };
+
+        const handleMouseUp = () => {
+            setIsResizing(false);
+        };
+
+        if (isResizing) {
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isResizing]);
+    
     // Effect to update local state when slide changes
     useEffect(() => {
         if (currentSlide) {
@@ -66,7 +217,7 @@ const EditorView: React.FC = () => {
 
     const handleSaveContent = () => {
         if (currentSlideId) {
-            updateSlideContent(currentSlideId, editedContent);
+            updateSlideContent(currentSlideId, editedContent.filter(c => c.trim()));
             updateSlideTitle(currentSlideId, editedTitle);
         }
     };
@@ -137,30 +288,47 @@ const EditorView: React.FC = () => {
         }
     };
 
-    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = event.target.files;
-        if (!files || !currentSlideId) return;
+    const handleImageSave = (editedImage: { data: string; mimeType: string; originalData?: string }) => {
+        if (currentSlideId) {
+            if (editingImage?.index !== undefined) {
+                // Updating an existing image
+                const newImage: ImageContent = { 
+                    ...editedImage, 
+                    prompt: currentSlide?.images?.[editingImage.index].prompt || 'User upload (edited)'
+                };
+                updateSlideImage(currentSlideId, editingImage.index, newImage);
 
-        for (const file of Array.from(files)) {
-            try {
-                const { data, mimeType } = await readFile(file);
-                if (file.type.startsWith('image/')) {
-                    const image: ImageContent = { data, mimeType, prompt: file.name };
-                    addSlideImage(currentSlideId, image);
-                } else if (file.type.startsWith('video/')) {
-                    const video: VideoContent = { data, mimeType, name: file.name };
-                    setSlideVideo(currentSlideId, video);
-                } else {
-                    alert(`Unsupported file type: ${file.name}. Please upload an image or video.`);
-                }
-            } catch (error) {
-                console.error("Error reading file:", error);
-                alert(`Failed to upload file: ${file.name}.`);
+            } else {
+                // Adding a new image
+                addSlideImage(currentSlideId, { ...editedImage, prompt: 'User upload' });
             }
+        }
+        setEditingImage(null);
+    };
+
+
+    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !currentSlideId) return;
+
+        try {
+            if (file.type.startsWith('image/')) {
+                const dataUrl = await readFileAsDataURL(file);
+                setEditingImage({ src: dataUrl, mimeType: file.type });
+            } else if (file.type.startsWith('video/')) {
+                const { data, mimeType } = await readFile(file);
+                const video: VideoContent = { data, mimeType, name: file.name };
+                setSlideVideo(currentSlideId, video);
+            } else {
+                alert(`Unsupported file type: ${file.name}. Please upload an image or video.`);
+            }
+        } catch (error) {
+            console.error("Error reading file:", error);
+            alert(`Failed to upload file: ${file.name}.`);
         }
 
         if (event.target) {
-            event.target.value = '';
+            event.target.value = ''; // Reset file input
         }
     };
 
@@ -168,6 +336,14 @@ const EditorView: React.FC = () => {
         fileInputRef.current?.click();
     };
     
+    const handleEditImage = (image: ImageContent, index: number) => {
+        const originalSrc = image.originalData 
+            ? `data:${image.mimeType};base64,${image.originalData}` 
+            : `data:${image.mimeType};base64,${image.data}`;
+        
+        setEditingImage({ src: originalSrc, mimeType: image.mimeType, index });
+    };
+
     // CRUD Handlers for Topics and Slides
     const handleAddTopic = () => {
         const newTopicTitle = prompt("Enter new topic title:", "New Topic");
@@ -208,6 +384,65 @@ const EditorView: React.FC = () => {
         }
     };
 
+    const getInitialLayouts = (slide: Slide): { textLayout?: LayoutProperties; mediaLayout?: LayoutProperties } => {
+        const hasMedia = (slide.images && slide.images.length > 0) || !!slide.video;
+        const hasContent = slide.content.length > 0 || slide.title.trim() !== '';
+
+        if (hasContent && hasMedia) {
+            return {
+                textLayout: slide.textLayout || { x: 2.5, y: 5, width: 45, height: 90 },
+                mediaLayout: slide.mediaLayout || { x: 52.5, y: 5, width: 45, height: 90 },
+            };
+        } else if (hasContent) {
+            return { textLayout: slide.textLayout || { x: 5, y: 5, width: 90, height: 90 }, mediaLayout: undefined };
+        } else if (hasMedia) {
+            return { mediaLayout: slide.mediaLayout || { x: 5, y: 5, width: 90, height: 90 }, textLayout: undefined };
+        }
+        return { textLayout: slide.textLayout || { x: 5, y: 5, width: 90, height: 90 } }; // Default for empty slide
+    };
+
+    const handleLayoutUpdate = (type: 'text' | 'media', newLayout: LayoutProperties) => {
+        if (currentSlideId) {
+            const key = type === 'text' ? 'textLayout' : 'mediaLayout';
+            updateSlideLayouts(currentSlideId, { [key]: newLayout });
+        }
+    };
+
+    useEffect(() => {
+        if (currentSlide) {
+            const hasMedia = (currentSlide.images && currentSlide.images.length > 0) || !!currentSlide.video;
+            const hasContent = currentSlide.content.length > 0 || currentSlide.title.trim() !== '';
+
+            // Automatically adjust layout when media/content is added/removed if no layout is set
+            if (!currentSlide.textLayout && !currentSlide.mediaLayout) {
+                 if (hasMedia && hasContent) {
+                    updateSlideLayouts(currentSlide.id, {
+                        textLayout: { x: 2.5, y: 5, width: 45, height: 90 },
+                        mediaLayout: { x: 52.5, y: 5, width: 45, height: 90 },
+                    });
+                }
+            }
+        }
+    }, [currentSlide?.images, currentSlide?.video, currentSlide?.content, currentSlide?.id]);
+
+    const handleTitleBlur = (e: React.FocusEvent<HTMLHeadingElement>) => {
+        const newTitle = e.currentTarget.innerText;
+        setEditedTitle(newTitle);
+        updateSlideTitle(currentSlideId!, newTitle);
+    };
+
+    const handleContentBlur = (e: React.FocusEvent<HTMLUListElement>) => {
+        const newContent = Array.from(e.currentTarget.querySelectorAll('li')).map(li => li.innerText);
+        setEditedContent(newContent);
+        updateSlideContent(currentSlideId!, newContent);
+    };
+
+    const handleNewProject = () => {
+        if (window.confirm("Are you sure you want to start a new project? Any unsaved changes will be lost.")) {
+            resetProject();
+        }
+    };
+
     if (!currentSlide) {
         return (
             <div className="flex h-screen items-center justify-center bg-[var(--dark-void)] text-white">
@@ -226,11 +461,16 @@ const EditorView: React.FC = () => {
         );
     }
     
+    const { textLayout, mediaLayout } = getInitialLayouts(currentSlide);
+    
     return (
         <div className="flex h-screen bg-[var(--dark-void)] text-[var(--text-color)]">
-            <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,video/*" multiple />
+            <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*,video/*" />
             {/* Sidebar */}
-            <aside className="w-80 bg-[#121212] p-4 flex flex-col overflow-y-auto border-r border-r-[#333]">
+            <aside 
+                style={{ width: `${sidebarWidth}px` }}
+                className="bg-[#121212] p-4 flex flex-col overflow-y-auto border-r border-r-[#333] shrink-0"
+            >
                 <header className="mb-6">
                     <Logo />
                 </header>
@@ -297,11 +537,25 @@ const EditorView: React.FC = () => {
                 </div>
             </aside>
 
+            {/* Resizer Handle */}
+            <div
+                onMouseDown={startResizing}
+                className="w-1.5 cursor-col-resize bg-transparent hover:bg-[var(--orange-primary)] transition-colors duration-200"
+                title="Resize sidebar"
+            />
+
             {/* Main Content */}
-            <main className="flex-1 flex flex-col">
+            <main className="flex-1 flex flex-col overflow-hidden">
                 {/* Header */}
                  <header className="w-full flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#333] p-4">
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={handleNewProject}
+                            className="p-2 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
+                            title="Home / New Project"
+                        >
+                            <HomeIcon className="w-5 h-5" />
+                        </button>
                         <button
                             onClick={() => setSettingsOpen(true)}
                             className="p-2 rounded-lg bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] transition-colors"
@@ -325,110 +579,150 @@ const EditorView: React.FC = () => {
                 </header>
 
                 {/* Slide Editor */}
-                <div className="flex-1 p-8 overflow-y-auto" onBlur={handleSaveContent}>
-                    <div className="max-w-4xl mx-auto">
-                        <input
-                            type="text"
-                            value={editedTitle}
-                            onChange={(e) => setEditedTitle(e.target.value)}
-                            onBlur={handleSaveContent}
-                            className="text-4xl font-bold bg-transparent focus:outline-none w-full mb-8 border-b-2 border-transparent focus:border-[var(--orange-primary)] transition-colors"
-                        />
-
-                        <div className="grid grid-cols-2 gap-8">
-                            {/* Left side: Content */}
-                            <div className="bg-[#1a1a1a] p-6 rounded-lg border border-[#333]">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold">Slide Content</h3>
-                                    <button
-                                      onClick={handleDraftContent}
-                                      disabled={isGeneratingContent}
-                                      className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1 disabled:opacity-50 font-bold"
-                                    >
-                                      {isGeneratingContent ? <Spinner className="w-3 h-3"/> : <EditIcon className="w-3 h-3" />}
-                                      Draft with AI
-                                    </button>
+                <div className="flex-1 p-8 overflow-hidden">
+                     <div className="max-w-7xl mx-auto flex flex-col h-full">
+                         <div className="flex-1 grid grid-cols-5 gap-8 overflow-hidden">
+                            {/* Left side: Editor panels */}
+                            <div className="col-span-2 flex flex-col gap-8 overflow-y-auto pr-4">
+                                {/* Content */}
+                                <div className="bg-[#1a1a1a] p-6 rounded-lg border border-[#333]">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="font-bold">Slide Content</h3>
+                                        <button
+                                          onClick={handleDraftContent}
+                                          disabled={isGeneratingContent}
+                                          className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1 disabled:opacity-50 font-bold"
+                                        >
+                                          {isGeneratingContent ? <Spinner className="w-3 h-3"/> : <EditIcon className="w-3 h-3" />}
+                                          Draft with AI
+                                        </button>
+                                    </div>
+                                     <input
+                                        type="text"
+                                        value={editedTitle}
+                                        onChange={(e) => setEditedTitle(e.target.value)}
+                                        onBlur={handleSaveContent}
+                                        placeholder="Slide Title"
+                                        className="text-lg font-bold bg-[#2a2a2a] p-2 rounded-md focus:ring-1 focus:ring-[var(--orange-primary)] focus:outline-none w-full mb-4 border border-transparent focus:border-[var(--orange-primary)]"
+                                    />
+                                    <div className="space-y-3">
+                                        {editedContent.map((point, index) => (
+                                            <div key={index} className="flex items-center gap-2">
+                                                <span className="text-[var(--orange-primary)]">&#8226;</span>
+                                                <input
+                                                    type="text"
+                                                    value={point}
+                                                    onChange={(e) => handleContentChange(index, e.target.value)}
+                                                    onBlur={handleSaveContent}
+                                                    className="w-full bg-[#2a2a2a] p-2 rounded-md focus:ring-1 focus:ring-[var(--orange-primary)] focus:outline-none border border-transparent focus:border-[var(--orange-primary)]"
+                                                />
+                                                <button onClick={() => removeBulletPoint(index)} className="text-gray-500 hover:text-red-400"><TrashIcon className="w-4 h-4" /></button>
+                                            </div>
+                                        ))}
+                                        <button onClick={addBulletPoint} className="text-sm flex items-center gap-1 text-gray-400 hover:text-white"><PlusIcon className="w-4 h-4" /> Add bullet point</button>
+                                    </div>
                                 </div>
-                                <div className="space-y-3">
-                                    {editedContent.map((point, index) => (
-                                        <div key={index} className="flex items-center gap-2">
-                                            <span className="text-[var(--orange-primary)]">&#8226;</span>
-                                            <input
-                                                type="text"
-                                                value={point}
-                                                onChange={(e) => handleContentChange(index, e.target.value)}
-                                                onBlur={handleSaveContent}
-                                                className="w-full bg-[#2a2a2a] p-2 rounded-md focus:ring-1 focus:ring-[var(--orange-primary)] focus:outline-none border border-transparent focus:border-[var(--orange-primary)]"
-                                            />
-                                            <button onClick={() => removeBulletPoint(index)} className="text-gray-500 hover:text-red-400"><TrashIcon className="w-4 h-4" /></button>
-                                        </div>
-                                    ))}
-                                    <button onClick={addBulletPoint} className="text-sm flex items-center gap-1 text-gray-400 hover:text-white"><PlusIcon className="w-4 h-4" /> Add bullet point</button>
-                                </div>
-                            </div>
 
-                            {/* Right side: Media */}
-                            <div className="bg-[#1a1a1a] p-6 rounded-lg flex flex-col items-center justify-center border border-[#333] min-h-[300px]">
-                                {currentSlide.images && currentSlide.images.length > 0 ? (
-                                    <div className="w-full h-full space-y-2">
-                                        <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
-                                            {currentSlide.images.map((image, index) => (
-                                                <div key={index} className="relative group aspect-square">
-                                                    <img
-                                                        src={`data:${image.mimeType};base64,${image.data}`}
-                                                        alt={image.prompt}
-                                                        className="w-full h-full object-cover rounded-md"
-                                                    />
-                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                                        <button onClick={() => deleteSlideImage(currentSlide.id!, index)} className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700">
-                                                            <TrashIcon className="w-5 h-5" />
-                                                        </button>
+                                {/* Media */}
+                                <div className="bg-[#1a1a1a] p-6 rounded-lg flex flex-col items-center justify-center border border-[#333] min-h-[300px]">
+                                    {currentSlide.images && currentSlide.images.length > 0 ? (
+                                        <div className="w-full h-full space-y-2">
+                                            <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto">
+                                                {currentSlide.images.map((image, index) => (
+                                                    <div key={index} className="relative group aspect-square">
+                                                        <img
+                                                            src={`data:${image.mimeType};base64,${image.data}`}
+                                                            alt={image.prompt}
+                                                            className="w-full h-full object-cover rounded-md"
+                                                        />
+                                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity gap-2">
+                                                            <button onClick={() => handleEditImage(image, index)} className="p-2 bg-blue-600 rounded-full text-white hover:bg-blue-700">
+                                                                <EditIcon className="w-5 h-5" />
+                                                            </button>
+                                                            <button onClick={() => deleteSlideImage(currentSlide.id!, index)} className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700">
+                                                                <TrashIcon className="w-5 h-5" />
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
+                                            <div className="flex gap-2 justify-center pt-2 border-t border-t-[#333]">
+                                                <button onClick={() => setImagePromptOpen(true)} className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1.5 font-bold">
+                                                    <SparklesIcon className="w-4 h-4" /> Generate
+                                                </button>
+                                                <button onClick={triggerFileSelect} className="px-3 py-1 text-xs rounded-md bg-[#3a3a3a] hover:bg-[#4a4a4a] flex items-center gap-1.5 font-bold">
+                                                    <UploadCloudIcon className="w-4 h-4" /> Upload
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-2 justify-center pt-2 border-t border-t-[#333]">
-                                            <button onClick={() => setImagePromptOpen(true)} className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1.5 font-bold">
-                                                <SparklesIcon className="w-4 h-4" /> Generate
-                                            </button>
-                                            <button onClick={triggerFileSelect} className="px-3 py-1 text-xs rounded-md bg-[#3a3a3a] hover:bg-[#4a4a4a] flex items-center gap-1.5 font-bold">
-                                                <UploadCloudIcon className="w-4 h-4" /> Upload
-                                            </button>
+                                    ) : currentSlide.video ? (
+                                        <div className="relative group w-full h-full">
+                                            <video
+                                                src={`data:${currentSlide.video.mimeType};base64,${currentSlide.video.data}`}
+                                                controls
+                                                className="w-full h-full object-contain rounded-md"
+                                            />
+                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <button onClick={() => deleteSlideVideo(currentSlide.id!)} className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700">
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-2 truncate" title={currentSlide.video.name}>
+                                                Source: {currentSlide.video.name}
+                                            </p>
                                         </div>
-                                    </div>
-                                ) : currentSlide.video ? (
-                                    <div className="relative group w-full h-full">
-                                        <video
-                                            src={`data:${currentSlide.video.mimeType};base64,${currentSlide.video.data}`}
-                                            controls
-                                            className="w-full h-full object-contain rounded-md"
-                                        />
-                                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                            <button onClick={() => deleteSlideVideo(currentSlide.id!)} className="p-2 bg-red-600 rounded-full text-white hover:bg-red-700">
-                                                <TrashIcon className="w-5 h-5" />
-                                            </button>
+                                    ) : (
+                                        <div className="text-center text-gray-400">
+                                            <ImageIcon className="w-16 h-16 mx-auto text-gray-600" />
+                                            <p className="mt-2 font-semibold">Add Media</p>
+                                            <p className="text-sm mb-4">Generate with AI or upload your own file.</p>
+                                            <div className="flex gap-2 justify-center">
+                                                <button onClick={() => setImagePromptOpen(true)} className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1.5 font-bold">
+                                                    <SparklesIcon className="w-4 h-4" /> Generate
+                                                </button>
+                                                <button onClick={triggerFileSelect} className="px-3 py-1 text-xs rounded-md bg-[#3a3a3a] hover:bg-[#4a4a4a] flex items-center gap-1.5 font-bold">
+                                                    <UploadCloudIcon className="w-4 h-4" /> Upload
+                                                </button>
+                                            </div>
                                         </div>
-                                        <p className="text-xs text-gray-500 mt-2 truncate" title={currentSlide.video.name}>
-                                            Source: {currentSlide.video.name}
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="text-center text-gray-400">
-                                        <ImageIcon className="w-16 h-16 mx-auto text-gray-600" />
-                                        <p className="mt-2 font-semibold">Add Media</p>
-                                        <p className="text-sm mb-4">Generate with AI or upload your own file.</p>
-                                        <div className="flex gap-2 justify-center">
-                                            <button onClick={() => setImagePromptOpen(true)} className="px-3 py-1 text-xs rounded-md bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] flex items-center gap-1.5 font-bold">
-                                                <SparklesIcon className="w-4 h-4" /> Generate
-                                            </button>
-                                            <button onClick={triggerFileSelect} className="px-3 py-1 text-xs rounded-md bg-[#3a3a3a] hover:bg-[#4a4a4a] flex items-center gap-1.5 font-bold">
-                                                <UploadCloudIcon className="w-4 h-4" /> Upload
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-                        </div>
+
+                            {/* Right side: Live Preview */}
+                            <div className="col-span-3 flex flex-col bg-[#1a1a1a] rounded-lg border border-[#333] p-4">
+                                <h3 className="text-sm font-semibold uppercase text-gray-500 text-center mb-4">
+                                    Live Preview (Editable)
+                                </h3>
+                                <div ref={previewContainerRef} className="flex-1 w-full bg-white rounded-md aspect-video overflow-hidden relative">
+                                    {textLayout && (
+                                        <DraggableResizableBox layout={textLayout} onLayoutChange={(l) => handleLayoutUpdate('text', l)} containerRef={previewContainerRef}>
+                                            <div className="w-full h-full text-black p-4 box-border">
+                                                <h1 className="text-3xl font-bold mb-4 outline-none" contentEditable suppressContentEditableWarning onBlur={handleTitleBlur}>{editedTitle}</h1>
+                                                <ul className="space-y-2 list-disc list-inside text-lg outline-none" contentEditable suppressContentEditableWarning onBlur={handleContentBlur}>
+                                                    {editedContent.map((point, i) => <li key={i}>{point}</li>)}
+                                                </ul>
+                                            </div>
+                                        </DraggableResizableBox>
+                                    )}
+                                    {mediaLayout && (
+                                        <DraggableResizableBox layout={mediaLayout} onLayoutChange={(l) => handleLayoutUpdate('media', l)} containerRef={previewContainerRef}>
+                                            <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                                            {currentSlide.images && currentSlide.images.length > 0 ? (
+                                                <div className="grid grid-cols-2 gap-2 w-full h-full p-2">
+                                                    {currentSlide.images.map((img, i) => (
+                                                        <img key={i} src={`data:${img.mimeType};base64,${img.data}`} className="w-full h-full object-contain" alt={img.prompt} />
+                                                    ))}
+                                                </div>
+                                            ) : currentSlide.video ? (
+                                                <video src={`data:${currentSlide.video!.mimeType};base64,${currentSlide.video!.data}`} controls className="w-full h-full object-contain" />
+                                            ) : <ImageIcon className="w-16 h-16 text-gray-400" />}
+                                            </div>
+                                        </DraggableResizableBox>
+                                    )}
+                                </div>
+                            </div>
+                         </div>
                     </div>
                 </div>
             </main>
@@ -449,6 +743,15 @@ const EditorView: React.FC = () => {
                 isSaving={isSaving}
                 initialName={title}
             />
+            {editingImage && (
+                <ImageEditModal
+                    isOpen={!!editingImage}
+                    onClose={() => setEditingImage(null)}
+                    onSave={handleImageSave}
+                    imageSrc={editingImage.src}
+                    imageMimeType={editingImage.mimeType}
+                />
+            )}
         </div>
     );
 };

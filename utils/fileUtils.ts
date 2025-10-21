@@ -19,6 +19,24 @@ export const readFile = (file: File): Promise<{ data: string, mimeType: string }
   });
 };
 
+export const readFileAsDataURL = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result);
+      } else {
+        reject(new Error('Failed to read file as data URL.'));
+      }
+    };
+    reader.onerror = (error) => {
+      reject(error);
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
+
 // FIX: Added the missing `readFileAsText` function to resolve an import error in `BrainstormingView.tsx`.
 // This function reads a file as a string for processing reference materials.
 export const readFileAsText = (file: File): Promise<string> => {

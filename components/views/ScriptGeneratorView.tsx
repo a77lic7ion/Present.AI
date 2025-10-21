@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { usePresentationStore } from '../../store/presentationStore';
 import { generateSpeakerNotesWithGemini } from '../../services/geminiService';
 import { Slide } from '../../types';
-import { EditIcon, MicIcon, SettingsIcon } from '../icons';
+import { EditIcon, MicIcon, SettingsIcon, HomeIcon } from '../icons';
 import Spinner from '../common/Spinner';
 import SettingsModal from '../common/SettingsModal';
 
@@ -12,7 +12,7 @@ const ScriptGeneratorView: React.FC = () => {
     const [selectedSlideId, setSelectedSlideId] = useState<string | null>(null);
     const [isSettingsOpen, setSettingsOpen] = useState(false);
 
-    const { title, topics, setSpeakerNotes, setCurrentView } = usePresentationStore();
+    const { title, topics, setSpeakerNotes, setCurrentView, resetProject } = usePresentationStore();
     
     const allSlides = topics.flatMap(t => t.subtopics);
 
@@ -43,10 +43,23 @@ const ScriptGeneratorView: React.FC = () => {
         }
     };
 
+    const handleNewProject = () => {
+        if (window.confirm("Are you sure you want to start a new project? Any unsaved changes will be lost.")) {
+            resetProject();
+        }
+    };
+
     return (
         <div className="flex flex-col h-screen bg-[var(--dark-void)] text-[var(--text-color)]">
             <header className="w-full flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#333] p-4">
                 <div className="flex items-center gap-4">
+                    <button
+                        onClick={handleNewProject}
+                        className="p-2 rounded-lg bg-[#2a2a2a] text-white hover:bg-[#3a3a3a] transition-colors"
+                        title="Home / New Project"
+                    >
+                        <HomeIcon className="w-5 h-5" />
+                    </button>
                     <button
                         onClick={() => setSettingsOpen(true)}
                         className="p-2 rounded-lg bg-[var(--orange-primary)] text-black hover:bg-[var(--orange-secondary)] transition-colors"
