@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import Spinner from './Spinner';
@@ -12,7 +13,6 @@ interface ImageEditModalProps {
 
 const ImageEditModal: React.FC<ImageEditModalProps> = ({ isOpen, onClose, onSave, imageSrc, imageMimeType }) => {
   const imgRef = useRef<HTMLImageElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [crop, setCrop] = useState<Crop>();
   const [isSaving, setIsSaving] = useState(false);
   const [zoom, setZoom] = useState(1);
@@ -59,43 +59,45 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({ isOpen, onClose, onSave
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Could not get canvas context');
 
-        const scaleX = image.naturalWidth / image.width;
-        const scaleY = image.naturalHeight / image.height;
+        // FIX: The crop object from react-image-crop is in percentages.
+        // The previous calculation treated them as pixels, leading to an incorrect source rectangle for the crop.
+        // This new calculation correctly converts percentages to absolute pixels based on the image's natural dimensions.
+        const pixelCrop = {
+            x: Math.round((crop.x / 100) * image.naturalWidth),
+            y: Math.round((crop.y / 100) * image.naturalHeight),
+            width: Math.round((crop.width / 100) * image.naturalWidth),
+            height: Math.round((crop.height / 100) * image.naturalHeight),
+        };
 
-        const croppedWidth = Math.floor(crop.width * scaleX);
-        const croppedHeight = Math.floor(crop.height * scaleY);
-
-        canvas.width = croppedWidth;
-        canvas.height = croppedHeight;
+        // Adjust canvas size for rotation
+        const swapDimensions = Math.abs(rotation % 180) === 90;
+        const rotatedWidth = swapDimensions ? pixelCrop.height : pixelCrop.width;
+        const rotatedHeight = swapDimensions ? pixelCrop.width : pixelCrop.height;
         
+        canvas.width = rotatedWidth;
+        canvas.height = rotatedHeight;
+
+        // Apply visual filters
         ctx.filter = `brightness(${brightness}%) contrast(${contrast}%) ${filter === 'grayscale' ? 'grayscale(100%)' : ''} ${filter === 'sepia' ? 'sepia(100%)' : ''}`;
         
-        // Handle rotation
-        // We need a temporary canvas to rotate the source image before cropping
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) throw new Error('Could not get temp canvas context');
-        
-        tempCanvas.width = image.naturalWidth;
-        tempCanvas.height = image.naturalHeight;
-        
-        tempCtx.translate(image.naturalWidth / 2, image.naturalHeight / 2);
-        tempCtx.rotate(rotation * Math.PI / 180);
-        tempCtx.drawImage(image, -image.naturalWidth / 2, -image.naturalHeight / 2);
-        
-        // Now draw the rotated image onto the final canvas with cropping
-        ctx.drawImage(
-            tempCanvas,
-            crop.x * scaleX,
-            crop.y * scaleY,
-            croppedWidth,
-            croppedHeight,
-            0,
-            0,
-            croppedWidth,
-            croppedHeight
-        );
+        // Center the canvas context for rotation, then rotate
+        ctx.translate(rotatedWidth / 2, rotatedHeight / 2);
+        ctx.rotate(rotation * Math.PI / 180);
 
+        // Draw the cropped portion of the source image.
+        // The negative offset centers the cropped image on the rotated canvas.
+        ctx.drawImage(
+            image,
+            pixelCrop.x,
+            pixelCrop.y,
+            pixelCrop.width,
+            pixelCrop.height,
+            -pixelCrop.width / 2,
+            -pixelCrop.height / 2,
+            pixelCrop.width,
+            pixelCrop.height
+        );
+        
         const editedDataUrl = canvas.toDataURL(imageMimeType);
         const editedBase64 = editedDataUrl.split(',')[1];
         const originalBase64 = imageSrc.split(',')[1];
@@ -105,6 +107,8 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({ isOpen, onClose, onSave
             mimeType: imageMimeType,
             originalData: originalBase64
         });
+        
+        onClose(); // Close modal on successful save
 
     } catch (e) {
       console.error('Error while saving image:', e);
@@ -113,6 +117,7 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({ isOpen, onClose, onSave
       setIsSaving(false);
     }
   };
+
 
   if (!isOpen) return null;
 
