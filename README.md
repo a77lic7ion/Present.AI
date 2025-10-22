@@ -1,5 +1,5 @@
 
-<img width="1024" height="1003" alt="logo(1)" src="https://github.com/user-attachments/assets/baea8439-9155-4a2c-ad17-bcc2326aae52" />
+<img width="500" height="500" alt="logo(1)" src="https://github.com/user-attachments/assets/baea8439-9155-4a2c-ad17-bcc2326aae52" />
 
 Welcome to **Present.AI**, the futuristic, AI-powered presentation design suite. Engage with a powerful AI through a conversational data stream to brainstorm, generate, and refine entire presentations from a single idea.
 
@@ -82,6 +82,8 @@ You can customize the AI providers used by the application:
 -   **Google Gemini**: This is the default provider and is configured securely using environment variables. No setup is needed.
 -   **Ollama, OpenAI, Mistral**: You can enter your custom endpoints and/or API keys for these services. Use the "Test" button to ensure your configuration is working correctly before saving.
 
----
+You can preview the live version here
+
+https://present-ai-seven.vercel.app/
 
 Created by **AfflictedAI** 2025
