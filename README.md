@@ -2,9 +2,6 @@
 
 Welcome to **Present.AI**, the futuristic, AI-powered presentation design suite. Engage with a powerful AI through a conversational data stream to brainstorm, generate, and refine entire presentations from a single idea.
 
-<img width="1891" height="870" alt="slide5" src="https://github.com/user-attachments/assets/acbe2712-a2c2-4b77-b159-4fc5644950e7" />
-
-
 ## 🚀 Core Features
 
 Present.AI is designed to be an end-to-end solution for creating compelling presentations with maximum efficiency and creativity.
@@ -34,20 +31,40 @@ This application is built with a modern, powerful, and efficient technology stac
 The workflow is designed to be intuitive, guiding you from a simple idea to a complete presentation.
 
 1.  **Start the Stream**: On the main screen, type your presentation topic into the terminal.
+
+<img width="1891" height="870" alt="slide5" src="https://github.com/user-attachments/assets/acbe2712-a2c2-4b77-b159-4fc5644950e7" />
+
 2.  **Provide Context (Optional)**: Drag and drop reference files or add URLs into the "Data Conduit" to give the AI more information.
+
+<img width="1910" height="877" alt="slide3" src="https://github.com/user-attachments/assets/4d0abd76-2884-4a83-8756-18e0cd53691a" />
+
+
 3.  **Initiate Protocol**: Click "Initiate Presentation Protocol." The AI will process your request and generate a structured outline of topics and slides.
+
+<img width="508" height="406" alt="slide4" src="https://github.com/user-attachments/assets/3a9b37e3-4653-4775-bb83-ce17a45af73d" />
+
 4.  **Enter the Editor**: The application will automatically transition to the Editor view, where your new presentation outline is loaded.
+
+<img width="1910" height="877" alt="slide3" src="https://github.com/user-attachments/assets/c8277ca6-6e42-4002-aa58-219c4354300f" />
+
 5.  **Refine & Enhance**:
     -   Click on any slide in the sidebar to view it.
     -   Edit slide titles and bullet points directly.
     -   Use the "Draft with AI" button to generate content.
     -   Use the "Generate Image" button to create visuals.
+
+    
 6.  **Generate a Script**: Navigate to the "Script" view to generate and review speaker notes for each slide.
+
+<img width="1891" height="870" alt="slide5" src="https://github.com/user-attachments/assets/773436ad-ddd4-46cf-9a10-8eff21bcd3a2" />
+
 7.  **Save & Export**: Your project is saved automatically. When you're finished, click "Download" in the editor to get your `.pptx` file.
 
 ## 🔧 Configuration
 
 You can customize the AI providers used by the application:
+
+<img width="519" height="559" alt="slide2" src="https://github.com/user-attachments/assets/513ca683-7d50-4a08-9b94-1ea7182fc023" />
 
 -   Click the **Connectors** button (the plug icon) in the header to open the settings modal.
 -   **Google Gemini**: This is the default provider and is configured securely using environment variables. No setup is needed.
