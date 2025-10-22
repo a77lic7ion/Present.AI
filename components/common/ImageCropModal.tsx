@@ -59,9 +59,6 @@ const ImageEditModal: React.FC<ImageEditModalProps> = ({ isOpen, onClose, onSave
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error('Could not get canvas context');
 
-        // FIX: The crop object from react-image-crop is in percentages.
-        // The previous calculation treated them as pixels, leading to an incorrect source rectangle for the crop.
-        // This new calculation correctly converts percentages to absolute pixels based on the image's natural dimensions.
         const pixelCrop = {
             x: Math.round((crop.x / 100) * image.naturalWidth),
             y: Math.round((crop.y / 100) * image.naturalHeight),

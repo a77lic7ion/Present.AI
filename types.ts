@@ -11,6 +11,11 @@ export interface VideoContent {
   name: string;
 }
 
+export interface TextProperties {
+  fontSize: number;
+  fontFamily: string;
+}
+
 export interface LayoutProperties {
   x: number; // percentage
   y: number; // percentage
@@ -21,6 +26,7 @@ export interface LayoutProperties {
 export interface Slide {
   id: string;
   title: string;
+  textProperties?: TextProperties;
   content: string[]; // bullet points
   images?: ImageContent[];
   video?: VideoContent;
