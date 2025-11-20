@@ -1,6 +1,5 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useDragAndResize } from '../../hooks/useDragAndResize';
 import { usePresentationStore } from '../../store/presentationStore';
 import { draftContentWithGemini, generateImageWithGemini } from '../../services/geminiService';
 import { exportToPptx } from '../../services/pptxService';
@@ -16,7 +15,6 @@ import ImagePromptModal from '../common/ImagePromptModal';
 import SaveProjectModal from '../common/SaveProjectModal';
 import ImageEditModal from '../common/ImageCropModal';
 import Spinner from '../common/Spinner';
-import TextToolbar from '../common/TextToolbar';
 
 interface DraggableResizableBoxProps {
     layout: LayoutProperties;
@@ -28,7 +26,65 @@ interface DraggableResizableBoxProps {
 
 const DraggableResizableBox: React.FC<DraggableResizableBoxProps> = ({ layout, onLayoutChange, containerRef, children, className }) => {
     const boxRef = useRef<HTMLDivElement>(null);
-    const { isDragging, isResizing, handleMouseDown } = useDragAndResize(layout, onLayoutChange, containerRef);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isResizing, setIsResizing] = useState<string | null>(null);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>, action: 'drag' | 'resize', direction?: string) => {
+        if ((e.target as HTMLElement).closest('[contenteditable="true"]')) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startLayout = { ...layout };
+
+        const containerRect = containerRef.current?.getBoundingClientRect();
+        if (!containerRect) return;
+
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            const dxPercent = (dx / containerRect.width) * 100;
+            const dyPercent = (dy / containerRect.height) * 100;
+
+            let newLayout = { ...startLayout };
+
+            if (action === 'drag') {
+                newLayout.x = startLayout.x + dxPercent;
+                newLayout.y = startLayout.y + dyPercent;
+            } else if (action === 'resize' && direction) {
+                if (direction.includes('r')) newLayout.width = Math.max(10, startLayout.width + dxPercent);
+                if (direction.includes('l')) {
+                    newLayout.width = Math.max(10, startLayout.width - dxPercent);
+                    newLayout.x = startLayout.x + dxPercent;
+                }
+                if (direction.includes('b')) newLayout.height = Math.max(10, startLayout.height + dyPercent);
+                if (direction.includes('t')) {
+                    newLayout.height = Math.max(10, startLayout.height - dyPercent);
+                    newLayout.y = startLayout.y + dyPercent;
+                }
+            }
+
+            // Clamp values to stay within container bounds
+            newLayout.x = Math.max(0, Math.min(newLayout.x, 100 - newLayout.width));
+            newLayout.y = Math.max(0, Math.min(newLayout.y, 100 - newLayout.height));
+            newLayout.width = Math.min(newLayout.width, 100 - newLayout.x);
+            newLayout.height = Math.min(newLayout.height, 100 - newLayout.y);
+
+            onLayoutChange(newLayout);
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp, { once: true });
+
+    }, [layout, onLayoutChange, containerRef]);
 
     const resizeHandles = ['tl', 't', 'tr', 'l', 'r', 'bl', 'b', 'br'];
 
@@ -60,7 +116,7 @@ const DraggableResizableBox: React.FC<DraggableResizableBoxProps> = ({ layout, o
                     ${dir === 't' || dir === 'b' ? 'cursor-ns-resize' : ''}
                     ${dir === 'l' || dir === 'r' ? 'cursor-ew-resize' : ''}
                     `}
-                    onMouseDown={(e) => handleMouseDown(e, 'resize', dir as any)}
+                    onMouseDown={(e) => handleMouseDown(e, 'resize', dir)}
                 />
             ))}
         </div>
@@ -567,8 +623,6 @@ const EditorView: React.FC = () => {
                                     </div>
                                 </div>
 
-                                <TextToolbar />
-
                                 {/* Media */}
                                 <div className="bg-[#1a1a1a] p-6 rounded-lg flex flex-col items-center justify-center border border-[#333] min-h-[300px]">
                                     {currentSlide.images && currentSlide.images.length > 0 ? (
@@ -643,13 +697,7 @@ const EditorView: React.FC = () => {
                                 <div ref={previewContainerRef} className="flex-1 w-full bg-white rounded-md aspect-video overflow-hidden relative">
                                     {textLayout && (
                                         <DraggableResizableBox layout={textLayout} onLayoutChange={(l) => handleLayoutUpdate('text', l)} containerRef={previewContainerRef}>
-                                            <div
-                                                className="w-full h-full text-black p-4 box-border"
-                                                style={{
-                                                    fontSize: `${currentSlide.textProperties?.fontSize || 16}px`,
-                                                    fontFamily: currentSlide.textProperties?.fontFamily || 'Arial',
-                                                }}
-                                            >
+                                            <div className="w-full h-full text-black p-4 box-border">
                                                 <h1 className="text-3xl font-bold mb-4 outline-none" contentEditable suppressContentEditableWarning onBlur={handleTitleBlur}>{editedTitle}</h1>
                                                 <ul className="space-y-2 list-disc list-inside text-lg outline-none" contentEditable suppressContentEditableWarning onBlur={handleContentBlur}>
                                                     {editedContent.map((point, i) => <li key={i}>{point}</li>)}

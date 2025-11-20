@@ -9,16 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.25.0",
-    "dexie": "^4.2.1",
-    "dexie-react-hooks": "^4.2.0",
-    "jszip": "3.10.1",
-    "lucide-react": "^0.546.0",
-    "pptxgenjs": "^4.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-image-crop": "^11.0.6",
-    "zustand": "^5.0.8"
+    "@google/genai": "^1.25.0",
+    "zustand": "^5.0.8",
+    "dexie": "^4.2.1",
+    "pptxgenjs": "^4.0.1",
+    "dexie-react-hooks": "^4.2.0",
+    "jszip": "3.10.1",
+    "react-image-crop": "^11.0.6"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

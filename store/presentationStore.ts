@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Topic, Slide, Project, ImageContent, VideoContent, LayoutProperties, TextProperties } from '../types';
+import type { Topic, Slide, Project, ImageContent, VideoContent, LayoutProperties } from '../types';
 
 type PresentationView = 'brainstorming' | 'editor' | 'script';
 
@@ -33,7 +33,6 @@ interface PresentationState {
   deleteSlide: (topicId: string, slideId: string) => void;
   updateSlideTitle: (slideId: string, newTitle: string) => void;
   updateSlideContent: (slideId: string, content: string[]) => void;
-  updateSlideTextProperties: (slideId: string, textProperties: TextProperties) => void;
   updateSlideLayouts: (slideId: string, layouts: { textLayout?: LayoutProperties; mediaLayout?: LayoutProperties }) => void;
   addSlideImage: (slideId: string, image: ImageContent) => void;
   updateSlideImage: (slideId: string, imageIndex: number, newImage: ImageContent) => void;
@@ -165,13 +164,6 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     topics: state.topics.map(topic => ({
       ...topic,
       subtopics: topic.subtopics.map(slide => slide.id === slideId ? { ...slide, content } : slide)
-    }))
-  })),
-
-  updateSlideTextProperties: (slideId, textProperties) => set(state => ({
-    topics: state.topics.map(topic => ({
-      ...topic,
-      subtopics: topic.subtopics.map(slide => slide.id === slideId ? { ...slide, textProperties } : slide)
     }))
   })),
 
